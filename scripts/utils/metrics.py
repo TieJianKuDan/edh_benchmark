@@ -58,9 +58,5 @@ def RS(x_hat:torch.Tensor, x:torch.Tensor):
 def SSIM(x_hat:torch.Tensor, x:torch.Tensor, data_range):
     ssim = StructuralSimilarityIndexMeasure(
         data_range=data_range
-<<<<<<< HEAD
     ).to(x.device)
-=======
-    ).to(x_hat.device)
->>>>>>> origin/mode2
     return ssim(x_hat, x)

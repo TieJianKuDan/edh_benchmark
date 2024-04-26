@@ -34,10 +34,6 @@ class ClassicConf():
                 loggers.TensorBoardLogger(
                     log_dir,
                     name=log_name,
-                ),
-                loggers.CSVLogger(
-                    log_dir,
-                    name=log_name
                 )
             ],
             precision=self.config.optim.precision,
@@ -85,10 +81,6 @@ def load_model_data(model_class, data_class, conf_path, ckp_path):
     torch.set_float32_matmul_precision(
         config.optim.float32_matmul_precision
     )
-    seed_everything(
-        seed=config.seed, workers=True
-    )
-    
     # data
     dm = data_class(
         config.data,
@@ -101,4 +93,4 @@ def load_model_data(model_class, data_class, conf_path, ckp_path):
     # model
     net = model_class.load_from_checkpoint(ckp_path).eval()
 
-    return (net, dm, test_dl, config)
+    return (net, test_dl, config)
