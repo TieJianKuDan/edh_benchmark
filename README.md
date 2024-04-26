@@ -1,4 +1,6 @@
-### Left gif is truth and the forecast is at rigth
+## Benchmark of Spatio-temporal Prediction Model in EDH Forecast
+
+Distinct training modes correspond to separate branches. Displayed below are gifs that illustrate the predictions for training mode2. The left gif represents the truth, while the right gif depicts the forcast.
 
 - **ConvLSTM** ![ConvLSTM](imgs/convlstm.gif)
 
