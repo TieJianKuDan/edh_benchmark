@@ -7,11 +7,7 @@ from einops import rearrange
 from torch.nn import Conv2d, MSELoss
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
 
-<<<<<<< HEAD
-from scripts.utils.metrics import MAE, RMSE
-=======
 from scripts.utils.metrics import CSI, MAE, MAPE, RMSE, SSIM
->>>>>>> origin/mode2
 
 from ...utils.optim import warmup_lambda
 from .models import SimVP2
@@ -101,8 +97,6 @@ class SimVP2PL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -118,7 +112,6 @@ class SimVP2PL(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -176,11 +169,8 @@ class SimVP2PL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
         edh = self.inverse_norm(edh, "edh")
         preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -208,7 +198,6 @@ class SimVP2PL(pl.LightningModule):
         era5 = torch.cat((era5, edh), dim=1)
         preds = self(era5[:, :, 0:self.cond_len])
 
-<<<<<<< HEAD
         # self.log_era5(
         #     era5=era5[:, 0:6],
         #     preds=preds[:, 0:6]
@@ -216,11 +205,6 @@ class SimVP2PL(pl.LightningModule):
         # self.log_edh(
         #     edh=edh,
         #     preds=preds[:, 6][:, None, :]
-=======
-        # self.log_edh(
-        #     edh=edh,
-        #     preds=preds
->>>>>>> origin/mode3
         # )
         self.log_edh_everytime(
             edh=edh,

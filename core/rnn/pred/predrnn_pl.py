@@ -9,10 +9,9 @@ from omegaconf import OmegaConf
 from torch.nn import Conv2d, MSELoss
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
 
-from scripts.utils.metrics import MAE, RMSE
-
 from ...utils.optim import warmup_lambda
 from . import predrnn, predrnn_v2
+from scripts.utils.metrics import RMSE, MAE, CSI, SSIM, MAPE
 
 
 class AbsPredRNN(pl.LightningModule):
@@ -194,8 +193,6 @@ class AbsPredRNN(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -211,7 +208,6 @@ class AbsPredRNN(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -269,11 +265,8 @@ class AbsPredRNN(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
         edh = self.inverse_norm(edh, "edh")
         preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -467,7 +460,6 @@ class PredRNNPL(AbsPredRNN):
         input_tensor = rearrange(input_tensor, "b t h w c -> b c t h w")
         self.config.reverse_scheduled_sampling = temp
         
-<<<<<<< HEAD
         # self.log_era5(
         #     era5=input_tensor[:, 0:6],
         #     preds=next_frames[:, 0:6]
@@ -479,15 +471,6 @@ class PredRNNPL(AbsPredRNN):
         self.log_edh_everytime(
             edh=input_tensor[:, 6][:, None, :],
             preds=next_frames[:, 6][:, None, :]
-=======
-        # self.log_edh(
-        #     edh=output_tensor,
-        #     preds=next_frames
-        # )
-        self.log_edh_everytime(
-            edh=output_tensor,
-            preds=next_frames
->>>>>>> origin/mode3
         )
 
 class PredRNNV2PL(AbsPredRNN):
@@ -637,7 +620,6 @@ class PredRNNV2PL(AbsPredRNN):
         input_tensor = rearrange(input_tensor, "b t h w c -> b c t h w")
         self.config.reverse_scheduled_sampling = temp
         
-<<<<<<< HEAD
         # self.log_era5(
         #     era5=input_tensor[:, 0:6],
         #     preds=next_frames[:, 0:6]
@@ -650,14 +632,3 @@ class PredRNNV2PL(AbsPredRNN):
             edh=input_tensor[:, 6][:, None, :],
             preds=next_frames[:, 6][:, None, :]
         )
-=======
-        # self.log_edh(
-        #     edh=output_tensor,
-        #     preds=next_frames
-        # )
-
-        self.log_edh_everytime(
-            edh=output_tensor,
-            preds=next_frames
-        )
->>>>>>> origin/mode3

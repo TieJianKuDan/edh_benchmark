@@ -6,11 +6,8 @@ import imageio
 import numpy as np
 import psutil
 from matplotlib import pyplot as plt
-from matplotlib import rcParams
 from matplotlib.axes import Axes
 from pandas import to_datetime
-
-rcParams['font.sans-serif'] = ['Times New Roman']
 
 
 def mem_info(vbose=False):
@@ -86,7 +83,7 @@ def edh_subplot(lon, lat, data, row, col):
     ).reshape((-1,))
     for i in range(len(axes)):
         axes[i].gridlines(
-            draw_labels=False, dms=True, 
+            draw_labels=True, dms=True, 
             x_inline=False, y_inline=False
         )
         # axes[i].coastlines()
@@ -100,10 +97,10 @@ def edh_subplot(lon, lat, data, row, col):
             extend="both",
             transform=ccrs.PlateCarree()
         )
-        # fig.colorbar(
-        #     contours, shrink=0.6,
-        #     ax=axes[i], pad=0.15,
-        # )
+        fig.colorbar(
+            contours, shrink=0.6,
+            ax=axes[i], pad=0.15,
+        )
     fig.tight_layout()
     return fig
 
@@ -166,6 +163,6 @@ def edh_gif(save_path, lon, lat, data, fps=2, time=None):
         image = image.reshape(
             fig.canvas.get_width_height()[::-1] + (3,))  
         imgs[i] = image 
+        plt.close(fig=fig)
     
     imageio.mimsave(save_path, imgs, fps=fps)
-    plt.close('all')

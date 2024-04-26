@@ -7,11 +7,7 @@ from einops import rearrange
 from torch.nn import Conv2d, MSELoss
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
 
-<<<<<<< HEAD
-from scripts.utils.metrics import MAE, RMSE
-=======
 from scripts.utils.metrics import CSI, MAE, MAPE, RMSE, SSIM
->>>>>>> origin/mode2
 
 from ...utils.optim import warmup_lambda
 from .convlstm import ConvLSTM
@@ -82,8 +78,6 @@ class ConvLSTMPL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -99,7 +93,6 @@ class ConvLSTMPL(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -157,11 +150,8 @@ class ConvLSTMPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
         edh = self.inverse_norm(edh, "edh")
         preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -181,10 +171,7 @@ class ConvLSTMPL(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0:
-<<<<<<< HEAD
-=======
             self.land = torch.load("data/other/land.pt").to(self.device)
->>>>>>> origin/mode2
             with open('.cache/dist_static.json', 'r') as f:  
                 self.dist = json.load(f)
         
@@ -192,7 +179,6 @@ class ConvLSTMPL(pl.LightningModule):
         era5 = torch.cat((era5, edh), dim=1)
         preds = self(era5)
         
-<<<<<<< HEAD
         # self.log_era5(
         #     era5=era5[:, 0:6],
         #     preds=preds[:, 0:6]
@@ -201,13 +187,6 @@ class ConvLSTMPL(pl.LightningModule):
         #     edh=edh,
         #     preds=preds[:, 6][:, None, :]
         # )
-=======
-        # self.log_edh(
-        #     edh=edh,
-        #     preds=preds
-        # )
-
->>>>>>> origin/mode3
         self.log_edh_everytime(
             edh=edh,
             preds=preds[:, 6][:, None, :]

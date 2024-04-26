@@ -1,0 +1,38 @@
+seed: 2333
+data:
+  edh_dir: "data/train/edh/"
+  era5_dir: "data/train/era5/"
+  val_ratio: 0.2
+  num_workers: 1
+  persistent_workers: True
+  seq_len: 32
+model:
+  input_channel: 7
+  hidden_channels: [256]
+  output_channel: 1
+  pred_len: 16
+  cond_len: 16
+  h: 1
+  w: 1
+  dropout: 0
+optim:
+  accelerator: "gpu"
+  precision: "32"
+  batch_size: 128
+  float32_matmul_precision: "medium"
+  # optimizer
+  lr: 1e-3
+  betas: [0.5, 0.9]
+  weight_decay: 1e-4
+  gradient_clip_val: 1.0
+  max_epochs: 100
+  accumulate: 1
+  # scheduler
+  warmup_percentage: 0.1
+  lr_scheduler_mode: "cosine"
+  min_lr_ratio: 1e-3
+  warmup_min_lr_ratio: 0.1
+  # early stopping
+  monitor: "val/loss"
+  patience: 15
+  

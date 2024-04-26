@@ -1,5 +1,4 @@
 import json
-
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -7,10 +6,9 @@ from einops import rearrange
 from torch.nn import Conv2d, MSELoss
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
 
-from scripts.utils.metrics import MAE, RMSE
-
 from ...utils.optim import warmup_lambda
 from .models import MMVP
+from scripts.utils.metrics import MAPE, RMSE, MAE, SSIM, CSI
 
 
 class MMVPPL(pl.LightningModule):
@@ -92,6 +90,21 @@ class MMVPPL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
+    def eval_edh(self, preds, truth, name):
+        rmse = RMSE(preds, truth)
+        mae = MAE(preds, truth)
+        mape = MAPE(preds, truth)
+        ssim = SSIM(preds, truth, data_range=200)
+        csi = CSI(preds, truth)
+
+        return {
+            f"{name}/rmse": rmse,
+            f"{name}/mae": mae,
+            f"{name}/mape": mape,
+            f"{name}/ssim": ssim,
+            f"{name}/csi": csi
+        }
+
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -119,7 +132,7 @@ class MMVPPL(pl.LightningModule):
                 criteria,
                 prog_bar=False,
                 logger=True,
-                on_step=True,
+                on_step=False,
                 on_epoch=True
             )
 
@@ -190,11 +203,6 @@ class MMVPPL(pl.LightningModule):
             edh=edh,
             preds=preds[:, 6][:, None, :]
         )
-        # self.log_edh_everytime(
-        #     edh=edh,
-        #     preds=preds
-        # )
-
 
     def configure_optimizers(self):
         lr = self.optim_config.lr

@@ -1,16 +1,14 @@
 import json
-
+from einops import rearrange
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from einops import rearrange
-from torch.nn import Conv2d, MSELoss
+from torch.nn import MSELoss, Conv2d
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
-
-from scripts.utils.metrics import MAE, RMSE
 
 from ...utils.optim import warmup_lambda
 from .models import SimVP
+from scripts.utils.metrics import MAPE, RMSE, MAE, SSIM, CSI
 
 
 class SimVPPL(pl.LightningModule):
@@ -91,8 +89,6 @@ class SimVPPL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -108,7 +104,6 @@ class SimVPPL(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -161,27 +156,6 @@ class SimVPPL(pl.LightningModule):
             on_step=False,
             on_epoch=True
         )
-        
-    def log_edh_everytime(self, edh, preds):
-        '''
-        edh: (b, c, t, h, w)
-        '''
-        preds = preds * ~self.land[None, None, None, :, :]
-        edh += 1e-6
-        preds += 1e-6
-        edh = rearrange(edh[:, :, -16:], "b c t h w -> t b c h w")
-        preds = rearrange(preds[:, :, -16:], "b c t h w -> t b c h w")
-
-        for i in range(16):
-            mae = MAE(preds[i], edh[i])
-            self.log(
-                f"t{i+16}",
-                mae,
-                prog_bar=False,
-                logger=True,
-                on_step=False,
-                on_epoch=True
-            )
 
     def log_edh_everytime(self, edh, preds):
         '''
@@ -215,7 +189,6 @@ class SimVPPL(pl.LightningModule):
         era5 = torch.cat((era5, edh), dim=1)
         preds = self(era5[:, :, 0:self.cond_len])
 
-<<<<<<< HEAD
         # self.log_era5(
         #     era5=era5[:, 0:6],
         #     preds=preds[:, 0:6]
@@ -223,11 +196,6 @@ class SimVPPL(pl.LightningModule):
         # self.log_edh(
         #     edh=edh,
         #     preds=preds[:, 6][:, None, :]
-=======
-        # self.log_edh(
-        #     edh=edh,
-        #     preds=preds
->>>>>>> origin/mode3
         # )
         self.log_edh_everytime(
             edh=edh,

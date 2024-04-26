@@ -1,12 +1,9 @@
-import json
 from einops import rearrange
 import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
-
-from scripts.utils.metrics import MAE, RMSE
 
 from ...utils.optim import warmup_lambda
 from .nlstm import NStepLSTM
@@ -56,7 +53,6 @@ class NStepLSTMPL(pl.LightningModule):
         '''
         shape: (b, c, t, h, w)
         '''
-        conds = rearrange(conds, "b c t h w -> (b h w) c t")[:, :, :, None, None]
         b = conds.shape[0]
         c = conds.shape[1]
         t = conds.shape[2]
@@ -77,13 +73,10 @@ class NStepLSTMPL(pl.LightningModule):
                 cond = conds[:, :, :, i, j]
                 pred = self(cond, i, j)
                 preds[:, :, :, i, j] = pred
-        preds = preds.squeeze()
-        preds = rearrange(preds, "(b h w) c t -> b c t h w", h=self.h, w=self.w)
         return preds
 
     def training_step(self, batch, batch_idx):
         era5, _ = batch
-        era5 = rearrange(era5, "b c t h w -> (b h w) c t")[:, :, :, None, None]
         assert self.cond_len != 1
         assert self.h == era5.shape[3]
         assert self.w == era5.shape[4]
@@ -105,7 +98,6 @@ class NStepLSTMPL(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         era5, _ = batch
-        era5 = rearrange(era5, "b c t h w -> (b h w) c t")[:, :, :, None, None]
         assert self.cond_len != 1
         assert self.h == era5.shape[3]
         assert self.w == era5.shape[4]
@@ -124,56 +116,8 @@ class NStepLSTMPL(pl.LightningModule):
             logger=True, on_step=False, on_epoch=True
         )
 
-    def inverse_norm(self, data, name):
-        return data * self.dist[name]["std"] + self.dist[name]["mean"]
-
-    def eval_era5(self, preds, truth, name):
-        rmse = RMSE(preds, truth)
-        mae = MAE(preds, truth)
-
-        return {
-            f"{name}/rmse": rmse,
-            f"{name}/mae": mae
-        }
-
-    def log_era5(self, era5, preds):
-        lookup = {
-            "u10": 0,
-            "v10": 1,
-            "t2m": 2,
-            "msl": 3,
-            "sst": 4,
-            "q2m": 5
-        }
-        for name, index in lookup.items():
-            u10_true = self.inverse_norm(
-                era5[:, index, -16:][:, None, :],
-                name=name
-            )
-            u10_pred = self.inverse_norm(
-                preds[:, index, -16:][:, None, :],
-                name=name
-            )
-            criteria = self.eval_era5(
-                preds=rearrange(u10_pred[:, :, -16:], "b c t h w -> (b t) c h w"),
-                truth=rearrange(u10_true[:, :, -16:], "b c t h w -> (b t) c h w"),
-                name=name
-            )
-            self.log_dict(
-                criteria,
-                prog_bar=False,
-                logger=True,
-                on_step=False,
-                on_epoch=True
-            )
-
     def test_step(self, batch, batch_idx):
-        if batch_idx == 0:
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
-                
         era5, _ = batch
-        era5 = rearrange(era5, "b c t h w -> (b h w) c t")[:, :, :, None, None]
         assert self.cond_len != 1
         assert self.h == era5.shape[3]
         assert self.w == era5.shape[4]
@@ -186,10 +130,10 @@ class NStepLSTMPL(pl.LightningModule):
                 cond = conds[:, :, :, i, j]
                 pred = self(cond, i, j)
                 preds[:, :, :, i, j] = pred
-
-        self.log_era5(
-            era5=era5,
-            preds=preds
+        l = self.loss(preds, truth)
+        self.log(
+            "test/loss", l, prog_bar=True,
+            logger=True, on_step=False, on_epoch=True
         )
 
     def configure_optimizers(self):

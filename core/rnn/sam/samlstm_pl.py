@@ -1,20 +1,14 @@
 import json
-
+from einops import rearrange
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from einops import rearrange
-from torch.nn import Conv2d, MSELoss
+from torch.nn import MSELoss, Conv2d
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
-
-from scripts.utils.metrics import MAE, RMSE
 
 from ...utils.optim import warmup_lambda
 from .samlstm import SAMConvLSTM
-<<<<<<< HEAD
-=======
 from scripts.utils.metrics import RMSE, MAE, SSIM, CSI, MAPE
->>>>>>> origin/mode2
 
 
 class SAMConvLSTMPL(pl.LightningModule):
@@ -82,8 +76,6 @@ class SAMConvLSTMPL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -99,7 +91,6 @@ class SAMConvLSTMPL(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -157,11 +148,8 @@ class SAMConvLSTMPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
         edh = self.inverse_norm(edh, "edh")
         preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -188,7 +176,6 @@ class SAMConvLSTMPL(pl.LightningModule):
         era5 = torch.cat((era5, edh), dim=1)
         preds = self(era5)
         
-<<<<<<< HEAD
         # self.log_era5(
         #     era5=era5[:, 0:6],
         #     preds=preds[:, 0:6]
@@ -196,11 +183,6 @@ class SAMConvLSTMPL(pl.LightningModule):
         # self.log_edh(
         #     edh=edh,
         #     preds=preds[:, 6][:, None, :]
-=======
-        # self.log_edh(
-        #     edh=edh,
-        #     preds=preds
->>>>>>> origin/mode3
         # )
         self.log_edh_everytime(
             edh=edh,
