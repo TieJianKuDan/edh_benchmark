@@ -1,5 +1,4 @@
 import json
-
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -7,10 +6,9 @@ from einops import rearrange
 from torch.nn import Conv2d, MSELoss
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
 
-from scripts.utils.metrics import MAE, RMSE
-
 from ...utils.optim import warmup_lambda
 from .models import MMVP
+from scripts.utils.metrics import MAPE, RMSE, MAE, SSIM, CSI
 
 
 class MMVPPL(pl.LightningModule):
@@ -43,14 +41,15 @@ class MMVPPL(pl.LightningModule):
         '''
         conds = rearrange(conds, "b c t h w -> b t c h w")
         preds = self.model(conds)
-        preds = rearrange(preds, "b t c h w -> b c t h w")
+        preds = rearrange(preds, "b t c h w -> (b t) c h w")
+        preds = self.conv(preds)
+        preds = rearrange(preds, "(b t) c h w -> b c t h w", b=conds.shape[0])
         return preds
 
     def training_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         cond = era5[:, :, 0:self.cond_len]
-        truth = era5[:, :, -self.pred_len:]
+        truth = edh[:, :, -self.pred_len:]
         preds = self(cond)
         l = self.loss(preds, truth)
 
@@ -66,9 +65,8 @@ class MMVPPL(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         cond = era5[:, :, 0:self.cond_len]
-        truth = era5[:, :, -self.pred_len:]
+        truth = edh[:, :, -self.pred_len:]
         preds = self(cond)
         l = self.loss(preds, truth)
 
@@ -90,6 +88,22 @@ class MMVPPL(pl.LightningModule):
         return {
             f"{name}/rmse": rmse,
             f"{name}/mae": mae
+        }
+
+    def eval_edh(self, preds, truth, name):
+        truth += 1e-6
+        rmse = RMSE(preds, truth)
+        mae = MAE(preds, truth)
+        mape = MAPE(preds, truth)
+        ssim = SSIM(preds, truth, data_range=200)
+        csi = CSI(preds, truth)
+
+        return {
+            f"{name}/rmse": rmse,
+            f"{name}/mae": mae,
+            f"{name}/mape": mape,
+            f"{name}/ssim": ssim,
+            f"{name}/csi": csi
         }
 
     def log_era5(self, era5, preds):
@@ -119,7 +133,7 @@ class MMVPPL(pl.LightningModule):
                 criteria,
                 prog_bar=False,
                 logger=True,
-                on_step=True,
+                on_step=False,
                 on_epoch=True
             )
 
@@ -127,15 +141,13 @@ class MMVPPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
         criteria = self.eval_edh(
             rearrange(preds[:, :, -16:], "b c t h w -> (b t) c h w"),
             rearrange(edh[:, :, -16:], "b c t h w -> (b t) c h w"), 
-            name="edh"
+            name="test"
         )
         self.log_dict(
             criteria,
@@ -149,8 +161,6 @@ class MMVPPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -171,24 +181,13 @@ class MMVPPL(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         if batch_idx == 0:
             self.land = torch.load("data/other/land.pt").to(self.device)
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
 
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         preds = self(era5[:, :, 0:self.cond_len])
 
-        # self.log_era5(
-        #     era5=era5[:, 0:6],
-        #     preds=preds[:, 0:6]
-        # )
-        # self.log_edh(
-        #     edh=edh,
-        #     preds=preds[:, 6][:, None, :]
-        # )
-        self.log_edh_everytime(
+        self.log_edh(
             edh=edh,
-            preds=preds[:, 6][:, None, :]
+            preds=preds
         )
         # self.log_edh_everytime(
         #     edh=edh,

@@ -166,6 +166,6 @@ def edh_gif(save_path, lon, lat, data, fps=2, time=None):
         image = image.reshape(
             fig.canvas.get_width_height()[::-1] + (3,))  
         imgs[i] = image 
+        plt.close(fig=fig)
     
     imageio.mimsave(save_path, imgs, fps=fps)
-    plt.close('all')

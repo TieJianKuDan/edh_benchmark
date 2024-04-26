@@ -1,25 +1,14 @@
-import json
 import random
-
+from einops import rearrange
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from einops import rearrange
-from torch.nn import Conv2d, MSELoss
+from torch.nn import MSELoss, Conv2d
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
-
-from scripts.utils.metrics import MAE, RMSE
 
 from ...utils.optim import warmup_lambda
 from .layers import AutoEncoder, ZigRevPredictor
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 from scripts.utils.metrics import MAPE, RMSE, MAE, SSIM, CSI
->>>>>>> origin/mode2
-=======
-from scripts.utils.metrics import MAPE, RMSE, MAE, SSIM, CSI
->>>>>>> origin/mode3
 
 
 class CrevNetPL(pl.LightningModule):
@@ -108,15 +97,21 @@ class CrevNetPL(pl.LightningModule):
             h_pred, memo = self.rnn((h, memo))
             pred = self.auto_encoder(h_pred, False)
             preds.append(pred)
-        return torch.stack(preds, dim=0)
+
+        preds = torch.stack(preds, dim=0)
+        preds = rearrange(preds, "t b c d h w -> (t b d) c h w")
+        preds = self.conv(preds)
+        preds = rearrange(
+            preds, "(t b d) c h w -> t b c d h w", 
+            b=conds.shape[1], d=conds.shape[3]
+        )
+        return preds
 
     def training_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         conds = self.expand_time_depth(era5, depth=self.depth)
-        truth = conds[1:]
+        truth = self.expand_time_depth(edh[:, :, 1:], depth=self.depth)
         preds = self(conds, self.optim_config.teacher_forcing_rate)
-        
         l = self.loss(preds, truth)
 
         self.log(
@@ -131,9 +126,8 @@ class CrevNetPL(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         conds = self.expand_time_depth(era5, depth=self.depth)
-        truth = conds[1:]
+        truth = self.expand_time_depth(edh[:, :, 1:], depth=self.depth)
         preds = self(conds)
         l = self.loss(preds, truth)
 
@@ -157,11 +151,6 @@ class CrevNetPL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> origin/mode3
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -176,11 +165,6 @@ class CrevNetPL(pl.LightningModule):
             f"{name}/ssim": ssim,
             f"{name}/csi": csi
         }
-<<<<<<< HEAD
-
->>>>>>> origin/mode2
-=======
->>>>>>> origin/mode3
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -216,44 +200,27 @@ class CrevNetPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
         criteria = self.eval_edh(
             rearrange(preds[:, :, -16:], "b c t h w -> (b t) c h w"),
             rearrange(edh[:, :, -16:], "b c t h w -> (b t) c h w"), 
-<<<<<<< HEAD
-            name="edh"
-=======
             name="test"
->>>>>>> origin/mode3
         )
         self.log_dict(
             criteria,
             prog_bar=False,
             logger=True,
-            on_step=True,
+            on_step=False,
             on_epoch=True
         )
 
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/mode3
     def log_edh_everytime(self, edh, preds):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -273,51 +240,6 @@ class CrevNetPL(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         if batch_idx == 0:
-<<<<<<< HEAD
-<<<<<<< HEAD
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
-                
-        era5, _ = batch
-=======
-            self.land = torch.load("data/other/land.pt").to(self.device)
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
-                
-        era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
->>>>>>> origin/mode2
-        conds = self.expand_time_depth(era5, depth=self.depth)
-        preds = self(conds)
-<<<<<<< HEAD
-        # (t, b, c, d, h, w)
-        preds = rearrange(preds, "t b c d h w -> (b d) c t h w")
-        conds = rearrange(conds, "t b c d h w -> (b d) c t h w")
-        
-        self.log_era5(
-            era5=conds,
-            preds=preds
-=======
-        preds = rearrange(preds, "t b c d h w -> (b d) c t h w")
-        truth = rearrange(truth, "t b c d h w -> (b d) c t h w")
-
-        # self.log_era5(
-        #     era5=truth[:, 0:6],
-        #     preds=preds[:, 0:6]
-        # )
-        # self.log_edh(
-        #     edh=truth[:, 6][:, None, :],
-        #     preds=preds[:, 6][:, None, :]
-        # )
-        self.log_edh_everytime(
-            edh=truth[:, 6][:, None, :],
-            preds=preds[:, 6][:, None, :]
->>>>>>> origin/mode2
-        )
-
-    def run(self, conds):
-        conds = self.expand_time_depth(conds, depth=self.depth)
-=======
             self.land = torch.load("data/other/land.pt").to(self.device)
 
         era5, edh = batch
@@ -339,15 +261,10 @@ class CrevNetPL(pl.LightningModule):
 
     def run(self, batch):
         conds = self.expand_time_depth(batch, depth=self.depth)
->>>>>>> origin/mode3
         preds = self(conds)
         preds = rearrange(preds[:, :, :, 0], "t b c h w -> b c t h w")
         return preds
 
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/mode3
     def configure_optimizers(self):
         lr = self.optim_config.lr
         betas = self.optim_config.betas

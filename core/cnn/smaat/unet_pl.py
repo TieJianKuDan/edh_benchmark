@@ -1,20 +1,14 @@
 import json
-
+from einops import rearrange
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from einops import rearrange
-from torch.nn import Conv2d, MSELoss
+from torch.nn import MSELoss, Conv2d, Sequential, ReLU
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
-
-from scripts.utils.metrics import MAE, RMSE
 
 from ...utils.optim import warmup_lambda
 from .unet import SmaAtUNet
-<<<<<<< HEAD
-=======
 from scripts.utils.metrics import MAPE, RMSE, MAE, SSIM, CSI
->>>>>>> origin/mode2
 
 
 class SmaAtUNetPL(pl.LightningModule):
@@ -50,14 +44,15 @@ class SmaAtUNetPL(pl.LightningModule):
         '''
         x = rearrange(x, "b c t h w -> b (c t) h w")
         pred = self.model(x)
-        pred = rearrange(pred, "b (c t) h w -> b c t h w", t=self.pred_len)
+        pred = rearrange(pred, "b (c t) h w -> (b t) c h w", t=self.pred_len)
+        pred = self.conv(pred)
+        pred = rearrange(pred, "(b t) c h w -> b c t h w", t=self.pred_len)
         return pred
 
     def training_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         cond = era5[:, :, 0:self.cond_len]
-        truth = era5[:, :, -self.pred_len:]
+        truth = edh[:, :, -self.pred_len:]
         pred = self(cond)
         l = self.loss(pred, truth)
 
@@ -72,9 +67,8 @@ class SmaAtUNetPL(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         cond = era5[:, :, 0:self.cond_len]
-        truth = era5[:, :, -self.pred_len:]
+        truth = edh[:, :, -self.pred_len:]
         pred = self(cond)
         l = self.loss(pred, truth)
 
@@ -98,8 +92,6 @@ class SmaAtUNetPL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -115,7 +107,6 @@ class SmaAtUNetPL(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -151,15 +142,13 @@ class SmaAtUNetPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
         criteria = self.eval_edh(
             rearrange(preds[:, :, -16:], "b c t h w -> (b t) c h w"),
             rearrange(edh[:, :, -16:], "b c t h w -> (b t) c h w"), 
-            name="edh"
+            name="test"
         )
         self.log_dict(
             criteria,
@@ -173,11 +162,6 @@ class SmaAtUNetPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -198,31 +182,18 @@ class SmaAtUNetPL(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         if batch_idx == 0:
             self.land = torch.load("data/other/land.pt").to(self.device)
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
                 
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         cond = era5[:, :, 0:self.cond_len]
         preds = self(cond)
 
-<<<<<<< HEAD
-        # self.log_era5(
-        #     era5=era5[:, 0:6],
-        #     preds=preds[:, 0:6]
-        # )
-        # self.log_edh(
-        #     edh=edh,
-        #     preds=preds[:, 6][:, None, :]
-=======
         # self.log_edh(
         #     edh=edh,
         #     preds=preds
->>>>>>> origin/mode3
         # )
         self.log_edh_everytime(
             edh=edh,
-            preds=preds[:, 6][:, None, :]
+            preds=preds
         )
 
     def configure_optimizers(self):

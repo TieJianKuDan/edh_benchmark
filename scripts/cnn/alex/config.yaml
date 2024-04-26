@@ -1,0 +1,34 @@
+seed:
+  2333
+data:
+  train_path: "data/train/era5/2003/"
+  test_path: "data/train/era5/2004/"
+  val_ratio: 0.2
+  num_workers: 1
+  persistent_workers: True
+  seq_len: 1
+model:
+  in_channels: 6
+  out_channels: 2
+optim:
+  # gpu
+  device: "cuda:0"
+  accelerator: "gpu"
+  precision: "32"
+  batch_size: 32
+  float32_matmul_precision: "medium"
+  # optimizer
+  method: "adam"
+  lr: 1e-3
+  betas: [0.5, 0.9]
+  gradient_clip_val: 1.0
+  max_epochs: 100
+  accumulate: 1
+  # scheduler
+  warmup_percentage: 0.1
+  lr_scheduler_mode: "cosine"
+  min_lr_ratio: 1.0e-3
+  warmup_min_lr_ratio: 0.1
+  # early stopping
+  monitor: "val/f1"
+  patience: 15

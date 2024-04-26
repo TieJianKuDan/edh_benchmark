@@ -1,0 +1,48 @@
+seed:
+  2333
+data:
+  edh_dir: "data/test/edh"
+  era5_dir: "data/test/era5"
+  val_ratio: 0.2
+  num_workers: 1
+  persistent_workers: True
+  seq_len: 32
+model:
+  in_channel: 6
+  out_channel: 1
+  cond_len: 16
+  pred_len: 16
+  in_shape: [16, 6, 64, 64]
+  hid_S: 16
+  hid_T: 256
+  N_S: 4
+  N_T: 4
+  mlp_ratio: 8.
+  drop: 0.0
+  drop_path: 0.0
+  spatio_kernel_enc: 3
+  spatio_kernel_dec: 3
+  act_inplace: True
+optim:
+  # gpu
+  device: "cuda:0"
+  accelerator: "gpu"
+  precision: "32"
+  batch_size: 32
+  float32_matmul_precision: "medium"
+  # optimizer
+  method: "adam"
+  lr: 1e-3
+  weight_decay: 1e-4
+  betas: [0.5, 0.9]
+  gradient_clip_val: 1.0
+  max_epochs: 100
+  accumulate: 1
+  # scheduler
+  warmup_percentage: 0.1
+  lr_scheduler_mode: "cosine"
+  min_lr_ratio: 1e-3
+  warmup_min_lr_ratio: 0.1
+  # early stopping
+  monitor: "val/loss"
+  patience: 15

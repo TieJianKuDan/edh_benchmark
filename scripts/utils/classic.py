@@ -34,10 +34,6 @@ class ClassicConf():
                 loggers.TensorBoardLogger(
                     log_dir,
                     name=log_name,
-                ),
-                loggers.CSVLogger(
-                    log_dir,
-                    name=log_name
                 )
             ],
             precision=self.config.optim.precision,

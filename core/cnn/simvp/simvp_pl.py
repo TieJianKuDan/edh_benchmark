@@ -1,16 +1,14 @@
 import json
-
+from einops import rearrange
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from einops import rearrange
-from torch.nn import Conv2d, MSELoss
+from torch.nn import MSELoss, Conv2d
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
-
-from scripts.utils.metrics import MAE, RMSE
 
 from ...utils.optim import warmup_lambda
 from .models import SimVP
+from scripts.utils.metrics import MAPE, RMSE, MAE, SSIM, CSI
 
 
 class SimVPPL(pl.LightningModule):
@@ -42,14 +40,15 @@ class SimVPPL(pl.LightningModule):
         '''
         conds = rearrange(conds, "b c t h w -> b t c h w")
         preds = self.model(conds)
-        preds = rearrange(preds, "b t c h w -> b c t h w")
+        preds = rearrange(preds, "b t c h w -> (b t) c h w")
+        preds = self.conv(preds)
+        preds = rearrange(preds, "(b t) c h w -> b c t h w", b=conds.shape[0])
         return preds
 
     def training_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         cond = era5[:, :, 0:self.cond_len]
-        truth = era5[:, :, -self.pred_len:]
+        truth = edh[:, :, -self.pred_len:]
         preds = self(cond)
         l = self.loss(preds, truth)
 
@@ -65,9 +64,8 @@ class SimVPPL(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         cond = era5[:, :, 0:self.cond_len]
-        truth = era5[:, :, -self.pred_len:]
+        truth = edh[:, :, -self.pred_len:]
         preds = self(cond)
         l = self.loss(preds, truth)
 
@@ -91,8 +89,6 @@ class SimVPPL(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -108,7 +104,6 @@ class SimVPPL(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -144,15 +139,13 @@ class SimVPPL(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
         criteria = self.eval_edh(
             rearrange(preds[:, :, -16:], "b c t h w -> (b t) c h w"),
             rearrange(edh[:, :, -16:], "b c t h w -> (b t) c h w"), 
-            name="edh"
+            name="test"
         )
         self.log_dict(
             criteria,
@@ -183,55 +176,20 @@ class SimVPPL(pl.LightningModule):
                 on_epoch=True
             )
 
-    def log_edh_everytime(self, edh, preds):
-        '''
-        edh: (b, c, t, h, w)
-        '''
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
-        preds = preds * ~self.land[None, None, None, :, :]
-        edh += 1e-6
-        preds += 1e-6
-        edh = rearrange(edh[:, :, -16:], "b c t h w -> t b c h w")
-        preds = rearrange(preds[:, :, -16:], "b c t h w -> t b c h w")
-
-        for i in range(16):
-            mae = MAE(preds[i], edh[i])
-            self.log(
-                f"t{i+16}",
-                mae,
-                prog_bar=False,
-                logger=True,
-                on_step=False,
-                on_epoch=True
-            )
-
     def test_step(self, batch, batch_idx):
         if batch_idx == 0:
             self.land = torch.load("data/other/land.pt").to(self.device)
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
+
         era5, edh = batch
-        era5 = torch.cat((era5, edh), dim=1)
         preds = self(era5[:, :, 0:self.cond_len])
 
-<<<<<<< HEAD
-        # self.log_era5(
-        #     era5=era5[:, 0:6],
-        #     preds=preds[:, 0:6]
-        # )
-        # self.log_edh(
-        #     edh=edh,
-        #     preds=preds[:, 6][:, None, :]
-=======
         # self.log_edh(
         #     edh=edh,
         #     preds=preds
->>>>>>> origin/mode3
         # )
         self.log_edh_everytime(
             edh=edh,
-            preds=preds[:, 6][:, None, :]
+            preds=preds
         )
 
     def configure_optimizers(self):

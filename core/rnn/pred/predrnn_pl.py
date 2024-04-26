@@ -9,10 +9,9 @@ from omegaconf import OmegaConf
 from torch.nn import Conv2d, MSELoss
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, SequentialLR
 
-from scripts.utils.metrics import MAE, RMSE
-
 from ...utils.optim import warmup_lambda
 from . import predrnn, predrnn_v2
+from scripts.utils.metrics import RMSE, MAE, CSI, SSIM, MAPE
 
 
 class AbsPredRNN(pl.LightningModule):
@@ -194,8 +193,6 @@ class AbsPredRNN(pl.LightningModule):
             f"{name}/mae": mae
         }
 
-<<<<<<< HEAD
-=======
     def eval_edh(self, preds, truth, name):
         rmse = RMSE(preds, truth)
         mae = MAE(preds, truth)
@@ -211,7 +208,6 @@ class AbsPredRNN(pl.LightningModule):
             f"{name}/csi": csi
         }
 
->>>>>>> origin/mode2
     def log_era5(self, era5, preds):
         lookup = {
             "u10": 0,
@@ -247,15 +243,13 @@ class AbsPredRNN(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
         criteria = self.eval_edh(
             rearrange(preds[:, :, -16:], "b c t h w -> (b t) c h w"),
             rearrange(edh[:, :, -16:], "b c t h w -> (b t) c h w"), 
-            name="edh"
+            name="test"
         )
         self.log_dict(
             criteria,
@@ -269,11 +263,6 @@ class AbsPredRNN(pl.LightningModule):
         '''
         edh: (b, c, t, h, w)
         '''
-<<<<<<< HEAD
-        edh = self.inverse_norm(edh, "edh")
-        preds = self.inverse_norm(preds, "edh")
-=======
->>>>>>> origin/mode3
         preds = preds * ~self.land[None, None, None, :, :]
         edh += 1e-6
         preds += 1e-6
@@ -365,6 +354,16 @@ class PredRNNPL(AbsPredRNN):
         next_frames = self.reshape_patch_back(
             next_frames, self.config.patch_size
         )
+        next_frames = rearrange(
+            next_frames, 
+            "b t h w c -> (b t) c h w"
+        )
+        next_frames = self.conv(next_frames)
+        next_frames = rearrange(
+            next_frames, 
+            "(b t) c h w -> b t h w c", 
+            b=frames_tensor.shape[0]
+        )
         return next_frames
 
     def run(self, batch):
@@ -389,7 +388,6 @@ class PredRNNPL(AbsPredRNN):
         input_tensor, output_tensor = batch
         input_tensor = rearrange(input_tensor, "b c t h w -> b t h w c")
         output_tensor = rearrange(output_tensor, "b c t h w -> b t h w c")
-        input_tensor = torch.cat((input_tensor, output_tensor), dim=-1)
 
         if self.config.reverse_scheduled_sampling == 1:
             mask_true = self.reserve_schedule_sampling_exp(
@@ -404,7 +402,7 @@ class PredRNNPL(AbsPredRNN):
             mask_true).to(self.config.device) 
 
         next_frames = self(input_tensor, mask_true)
-        l = self.loss(next_frames, input_tensor[:, 1:])
+        l = self.loss(next_frames, output_tensor[:, 1:])
 
         self.log(
             "train/loss", l, prog_bar=True,
@@ -416,7 +414,6 @@ class PredRNNPL(AbsPredRNN):
         input_tensor, output_tensor = batch
         input_tensor = rearrange(input_tensor, "b c t h w -> b t h w c")
         output_tensor = rearrange(output_tensor, "b c t h w -> b t h w c")
-        input_tensor = torch.cat((input_tensor, output_tensor), dim=-1)
 
         temp = self.config.reverse_scheduled_sampling
         self.config.reverse_scheduled_sampling = 0
@@ -433,7 +430,7 @@ class PredRNNPL(AbsPredRNN):
         next_frames = self(input_tensor, mask_true)
         self.config.reverse_scheduled_sampling = temp
 
-        l = self.loss(next_frames, input_tensor[:, 1:])
+        l = self.loss(next_frames, output_tensor[:, 1:])
         self.log(
             "val/loss", l, prog_bar=True,
             logger=True, on_step=False, on_epoch=True
@@ -442,13 +439,9 @@ class PredRNNPL(AbsPredRNN):
     def test_step(self, batch, batch_idx):
         if batch_idx == 0:
             self.land = torch.load("data/other/land.pt").to(self.device)
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
 
         input_tensor, output_tensor = batch
         input_tensor = rearrange(input_tensor, "b c t h w -> b t h w c")
-        output_tensor = rearrange(output_tensor, "b c t h w -> b t h w c")
-        input_tensor = torch.cat((input_tensor, output_tensor), dim=-1)
         
         temp = self.config.reverse_scheduled_sampling
         self.config.reverse_scheduled_sampling = 0
@@ -464,22 +457,8 @@ class PredRNNPL(AbsPredRNN):
             mask_true).to(self.config.device)
         next_frames = self(input_tensor, mask_true)
         next_frames = rearrange(next_frames, "b t h w c -> b c t h w")
-        input_tensor = rearrange(input_tensor, "b t h w c -> b c t h w")
         self.config.reverse_scheduled_sampling = temp
         
-<<<<<<< HEAD
-        # self.log_era5(
-        #     era5=input_tensor[:, 0:6],
-        #     preds=next_frames[:, 0:6]
-        # )
-        # self.log_edh(
-        #     edh=input_tensor[:, 6][:, None, :],
-        #     preds=next_frames[:, 6][:, None, :]
-        # )
-        self.log_edh_everytime(
-            edh=input_tensor[:, 6][:, None, :],
-            preds=next_frames[:, 6][:, None, :]
-=======
         # self.log_edh(
         #     edh=output_tensor,
         #     preds=next_frames
@@ -487,8 +466,8 @@ class PredRNNPL(AbsPredRNN):
         self.log_edh_everytime(
             edh=output_tensor,
             preds=next_frames
->>>>>>> origin/mode3
         )
+
 
 class PredRNNV2PL(AbsPredRNN):
     '''
@@ -512,6 +491,16 @@ class PredRNNV2PL(AbsPredRNN):
         next_frames, d_loss = self.rnn(input_patch, mask_true)
         next_frames = self.reshape_patch_back(
             next_frames, self.config.patch_size
+        )
+        next_frames = rearrange(
+            next_frames, 
+            "b t h w c -> (b t) c h w"
+        )
+        next_frames = self.conv(next_frames)
+        next_frames = rearrange(
+            next_frames, 
+            "(b t) c h w -> b t h w c", 
+            b=frames_tensor.shape[0]
         )
         return next_frames, d_loss
 
@@ -537,7 +526,6 @@ class PredRNNV2PL(AbsPredRNN):
         input_tensor, output_tensor = batch
         input_tensor = rearrange(input_tensor, "b c t h w -> b t h w c")
         output_tensor = rearrange(output_tensor, "b c t h w -> b t h w c")
-        input_tensor = torch.cat((input_tensor, output_tensor), dim=-1)
 
         if self.config.reverse_scheduled_sampling == 1:
             mask_true = self.reserve_schedule_sampling_exp(
@@ -551,7 +539,7 @@ class PredRNNV2PL(AbsPredRNN):
             mask_true).to(self.config.device) 
 
         next_frames, d_loss = self(input_tensor, mask_true)
-        mse_loss = self.loss(next_frames, input_tensor[:, 1:])
+        mse_loss = self.loss(next_frames, output_tensor[:, 1:])
         total_loss = mse_loss + d_loss
 
         self.log_dict(
@@ -574,7 +562,6 @@ class PredRNNV2PL(AbsPredRNN):
         input_tensor, output_tensor = batch
         input_tensor = rearrange(input_tensor, "b c t h w -> b t h w c")
         output_tensor = rearrange(output_tensor, "b c t h w -> b t h w c")
-        input_tensor = torch.cat((input_tensor, output_tensor), dim=-1)
 
         temp = self.config.reverse_scheduled_sampling
         self.config.reverse_scheduled_sampling = 0
@@ -591,7 +578,7 @@ class PredRNNV2PL(AbsPredRNN):
         next_frames, d_loss = self(input_tensor, mask_true)
         self.config.reverse_scheduled_sampling = temp
 
-        mse_loss = self.loss(next_frames, input_tensor[:, 1:])
+        mse_loss = self.loss(next_frames, output_tensor[:, 1:])
         total_loss = mse_loss + d_loss
 
         self.log_dict(
@@ -612,13 +599,8 @@ class PredRNNV2PL(AbsPredRNN):
     def test_step(self, batch, batch_idx):
         if batch_idx == 0:
             self.land = torch.load("data/other/land.pt").to(self.device)
-            with open('.cache/dist_static.json', 'r') as f:  
-                self.dist = json.load(f)
-
         input_tensor, output_tensor = batch
         input_tensor = rearrange(input_tensor, "b c t h w -> b t h w c")
-        output_tensor = rearrange(output_tensor, "b c t h w -> b t h w c")
-        input_tensor = torch.cat((input_tensor, output_tensor), dim=-1)
         
         temp = self.config.reverse_scheduled_sampling
         self.config.reverse_scheduled_sampling = 0
@@ -634,23 +616,8 @@ class PredRNNV2PL(AbsPredRNN):
             mask_true).to(self.config.device)
         next_frames, _ = self(input_tensor, mask_true)
         next_frames = rearrange(next_frames, "b t h w c -> b c t h w")
-        input_tensor = rearrange(input_tensor, "b t h w c -> b c t h w")
         self.config.reverse_scheduled_sampling = temp
         
-<<<<<<< HEAD
-        # self.log_era5(
-        #     era5=input_tensor[:, 0:6],
-        #     preds=next_frames[:, 0:6]
-        # )
-        # self.log_edh(
-        #     edh=input_tensor[:, 6][:, None, :],
-        #     preds=next_frames[:, 6][:, None, :]
-        # )
-        self.log_edh_everytime(
-            edh=input_tensor[:, 6][:, None, :],
-            preds=next_frames[:, 6][:, None, :]
-        )
-=======
         # self.log_edh(
         #     edh=output_tensor,
         #     preds=next_frames
@@ -660,4 +627,3 @@ class PredRNNV2PL(AbsPredRNN):
             edh=output_tensor,
             preds=next_frames
         )
->>>>>>> origin/mode3
