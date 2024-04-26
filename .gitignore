@@ -1,0 +1,14 @@
+*
+!.gitignore
+!core
+!core/**
+!scripts
+!scripts/**
+!tests
+!tests/**
+!README.md
+!imgs
+!imgs/**
+!exps
+!exps/**
+__pycache__
